@@ -14,7 +14,7 @@ from openenv.core.env_server.types import Action, Observation
 # ==========================================
 class ApplicantState(BaseModel):
     cgpa: float
-    test_score: Dict[str, Any]
+    test_score: Optional[Dict[str, Any]] = None
     resume_full: str
     linkedin_full: str
     github_full: Dict[str, Any]
@@ -37,13 +37,14 @@ class AdmissionsState(BaseModel):
     program: ProgramState
     application_state: ApplicationState
     constraints: Dict[str, int] = Field(default_factory=lambda: {"max_steps": 10})
+    task_type: str
 
 # ==========================================
 # 2. OBSERVATION (What the Agent Actually Sees)
 # ==========================================
 class ApplicantObservation(BaseModel):
     cgpa: float
-    test_score: Dict[str, Any]
+    test_score: Optional[Dict[str, Any]] = None
     # Summaries start as None until the agent uses tools to reveal them
     resume_summary: Optional[str] = None
     linkedin_summary: Optional[str] = None
@@ -51,11 +52,13 @@ class ApplicantObservation(BaseModel):
 
 class AdmissionsObservation(Observation):
     """The limited data fed to the agent at each step."""
+    task: str = Field(..., description="Instructions for the agent")
     stage: str = Field(..., description="Current stage of the application workflow")
     applicant: ApplicantObservation = Field(..., description="Visible details of the applicant")
     program: Dict[str, Any] = Field(..., description="Program details, e.g., {'name': 'MTech AI', 'seats_left': 12}")
     history: List[str] = Field(default_factory=list, description="Log of actions taken so far")
     available_actions: List[str] = Field(..., description="List of valid tool calls the agent can make")
+    info: Dict[str, Any] = Field(default_factory=dict)
 
 # ==========================================
 # 3. ACTION (The Agent's Tool Calls)
