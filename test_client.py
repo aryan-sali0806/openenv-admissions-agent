@@ -3,7 +3,7 @@ from models import AdmissionsAction
 import time
 
 def run_full_test():
-    print("🎓 MTech Admissions Simulator - Initializing...")
+    print("MTech Admissions Simulator - Initializing...")
     
     # Connect to your local server
     with AdmissionsEnv(base_url="http://127.0.0.1:8080").sync() as env:

@@ -76,10 +76,10 @@ def main(host: str = "0.0.0.0", port: int = 8000):
     uvicorn.run(app, host=host, port=port)
 
 
-if __name__ == "__main__":
-    import argparse
+def main():
+    """Entry point for the OpenEnv validator and local testing."""
+    import uvicorn
+    uvicorn.run("server.app:app", host="0.0.0.0", port=8000)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=8000)
-    args = parser.parse_args()
-    main(port=args.port)
+if __name__ == "__main__":
+    main()

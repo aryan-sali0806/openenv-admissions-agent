@@ -1,0 +1,2 @@
+[console_scripts]
+server = admissions_env.server.app:main
