@@ -20,6 +20,7 @@ Endpoints:
 Usage:
     # Development (with auto-reload):
     uvicorn server.app:app --reload --host 0.0.0.0 --port 8000
+    
 
     # Production:
     uvicorn server.app:app --host 0.0.0.0 --port 8000 --workers 4
@@ -38,7 +39,7 @@ except Exception as e:  # pragma: no cover
 try:
     from ..models import AdmissionsAction, AdmissionsObservation
     from .admissions_env_environment import AdmissionsEnvironment
-except ModuleNotFoundError:
+except (ModuleNotFoundError, ImportError):
     from models import AdmissionsAction, AdmissionsObservation
     from server.admissions_env_environment import AdmissionsEnvironment
 

@@ -1,99 +1,50 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
 
 """Admissions Env Environment Client."""
 
-from typing import Dict
+from typing import Dict, Any
 
 from openenv.core import EnvClient
 from openenv.core.client_types import StepResult
-from openenv.core.env_server.types import State
 
-from .models import AdmissionsAction, AdmissionsObservation
-
+# Import your actual Pydantic models
+from models import AdmissionsAction, AdmissionsObservation, AdmissionsState
 
 class AdmissionsEnv(
-    EnvClient[AdmissionsAction, AdmissionsObservation, State]
+    EnvClient[AdmissionsAction, AdmissionsObservation, AdmissionsState]
 ):
     """
     Client for the Admissions Env Environment.
-
-    This client maintains a persistent WebSocket connection to the environment server,
-    enabling efficient multi-step interactions with lower latency.
-    Each client instance has its own dedicated environment session on the server.
-
-    Example:
-        >>> # Connect to a running server
-        >>> with AdmissionsEnv(base_url="http://localhost:8000") as client:
-        ...     result = client.reset()
-        ...     print(result.observation.echoed_message)
-        ...
-        ...     result = client.step(AdmissionsAction(message="Hello!"))
-        ...     print(result.observation.echoed_message)
-
-    Example with Docker:
-        >>> # Automatically start container and connect
-        >>> client = AdmissionsEnv.from_docker_image("admissions_env-env:latest")
-        >>> try:
-        ...     result = client.reset()
-        ...     result = client.step(AdmissionsAction(message="Test"))
-        ... finally:
-        ...     client.close()
+    Handles the seamless translation between Python objects and server JSON.
     """
 
-    def _step_payload(self, action: AdmissionsAction) -> Dict:
+    def _step_payload(self, action: AdmissionsAction) -> Dict[str, Any]:
         """
-        Convert AdmissionsAction to JSON payload for step message.
-
-        Args:
-            action: AdmissionsAction instance
-
-        Returns:
-            Dictionary representation suitable for JSON encoding
+        Convert your AdmissionsAction into the JSON the server expects.
         """
         return {
-            "message": action.message,
+            "action_type": action.action_type,
+            "action_args": action.action_args,
         }
 
-    def _parse_result(self, payload: Dict) -> StepResult[AdmissionsObservation]:
+    def _parse_result(self, payload: Dict[str, Any]) -> StepResult[AdmissionsObservation]:
         """
-        Parse server response into StepResult[AdmissionsObservation].
-
-        Args:
-            payload: JSON response data from server
-
-        Returns:
-            StepResult with AdmissionsObservation
+        Unwrap the server's JSON back into your AdmissionsObservation Pydantic model.
         """
         obs_data = payload.get("observation", {})
-        observation = AdmissionsObservation(
-            echoed_message=obs_data.get("echoed_message", ""),
-            message_length=obs_data.get("message_length", 0),
-            done=payload.get("done", False),
-            reward=payload.get("reward"),
-            metadata=obs_data.get("metadata", {}),
-        )
+        
+        # Pydantic magic: **obs_data automatically unpacks the dict into your model!
+        observation = AdmissionsObservation(**obs_data)
 
         return StepResult(
             observation=observation,
-            reward=payload.get("reward"),
+            reward=payload.get("reward", 0.0),
             done=payload.get("done", False),
         )
 
-    def _parse_state(self, payload: Dict) -> State:
+    def _parse_state(self, payload: Dict[str, Any]) -> AdmissionsState:
         """
-        Parse server response into State object.
-
-        Args:
-            payload: JSON response from state request
-
-        Returns:
-            State object with episode_id and step_count
+        Parse the server's internal memory state.
         """
-        return State(
-            episode_id=payload.get("episode_id"),
-            step_count=payload.get("step_count", 0),
-        )
+        return AdmissionsState(**payload)

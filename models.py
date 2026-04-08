@@ -33,6 +33,8 @@ class ApplicationState(BaseModel):
 
 class AdmissionsState(BaseModel):
     """The absolute truth of the simulation. The agent never sees this directly."""
+    episode_id: str = ""   
+    step_count: int = 0
     applicant: ApplicantState
     program: ProgramState
     application_state: ApplicationState

@@ -1,19 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
-"""
-Admissions Env Environment Implementation.
-
-A real-world simulation of a postgraduate university admission system 
-where an AI agent processes applications step-by-step.
-"""
 
 import random
 from uuid import uuid4
-
 from openenv.core.env_server.interfaces import Environment
 
 try:
@@ -27,35 +16,29 @@ except ImportError:
         ApplicantState, ProgramState, ApplicationState, ApplicantObservation
     )
 
-
 class AdmissionsEnvironment(Environment):
     """
     Intelligent Postgraduate Admission Workflow Environment.
-    
-    The agent must evaluate an applicant's profile using limited actions 
-    (like analyze_resume) and make a final admit/reject decision.
     """
-
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
 
     def __init__(self):
-        """Initialize the admissions environment."""
+        super().__init__()
         self._state = None
         self._reset_count = 0
         self._episode_id = str(uuid4())
-    
+
     def reset(self) -> AdmissionsObservation:
         """
         Reset the environment and load a new applicant profile.
-        Randomly selects between Easy, Medium, and Hard tasks to test agent robustness.
+        Returns a hardcoded 'Turn 1' observation.
         """
         self._reset_count += 1
         self._episode_id = str(uuid4())
         
-        # 1. Randomly select task difficulty (The "Hidden" Reality)
+        # 1. Randomly select task difficulty (Internal State)
         task_type = random.choice(["easy", "medium", "hard"])
         
-        #  TASK 1: EASY (Obvious high-quality candidate)
         if task_type == "easy":
             app_state = ApplicantState(
                 cgpa=9.2,
@@ -65,8 +48,6 @@ class AdmissionsEnvironment(Environment):
                 github_full={"repos": 25, "stars": 300, "top_lang": "Python"},
                 true_quality_score=95
             )
-            
-        #  TASK 2: MEDIUM (Missing test score, requires checking GitHub/Resume)
         elif task_type == "medium":
             app_state = ApplicantState(
                 cgpa=7.5,
@@ -76,8 +57,6 @@ class AdmissionsEnvironment(Environment):
                 github_full={"repos": 12, "stars": 50, "top_lang": "C++"},
                 true_quality_score=75
             )
-            
-        #  TASK 3: HARD (Conflicting profile: weak CGPA, extremely high test score)
         else:
             app_state = ApplicantState(
                 cgpa=6.1,
@@ -88,10 +67,11 @@ class AdmissionsEnvironment(Environment):
                 true_quality_score=68
             )
 
-        # 2. Set the Hidden State (The "Referee's" Knowledge)
-        seats_filled = random.randint(40, 55) # Adds variability to seat constraints [cite: 35]
-        
+        # 2. Set the Hidden State
+        seats_filled = random.randint(40, 55)
         self._state = AdmissionsState(
+            episode_id=self._episode_id,  
+            step_count=0,
             applicant=app_state,
             program=ProgramState(
                 name="MTech AI", 
@@ -108,20 +88,18 @@ class AdmissionsEnvironment(Environment):
             task_type=task_type
         )
 
-        # 3. Define the Agent's Objective
-        task_instruction = (
-            "OBJECTIVE: Evaluate the applicant for the MTech AI program. "
-            "Use your tools to analyze their profile. You have limited seats and a "
-            "max step limit. Make a final decision to ADMIT or REJECT."
-        )
-
-        # 4. Generate the Initial Observation (What the AI actually sees) 
-        initial_obs = AdmissionsObservation(
-            task=task_instruction,
-            stage=self._state.application_state.stage,
+        # 3. THE RESET OBSERVATION (Manual Return)
+        # This ensures the AI sees the OBJECTIVE and FULL GATE SCORE on Turn 1.
+        return AdmissionsObservation(
+            task=(
+                "OBJECTIVE: Evaluate the applicant for the MTech AI program. "
+                "Use your tools to analyze their profile. You have limited seats and a "
+                "max step limit. Make a final decision to ADMIT or REJECT."
+            ),
+            stage="initial_screening",
             applicant=ApplicantObservation(
                 cgpa=self._state.applicant.cgpa,
-                test_score=self._state.applicant.test_score,
+                test_score=self._state.applicant.test_score, # Full score shown!
                 resume_summary=None,
                 linkedin_summary=None,
                 github_summary=None
@@ -130,142 +108,114 @@ class AdmissionsEnvironment(Environment):
                 "name": self._state.program.name,
                 "seats_left": self._state.program.seats_total - self._state.program.seats_filled
             },
-            history=self._state.application_state.history,
+            history=[],
             available_actions=[
-                "analyze_resume", 
-                "analyze_linkedin", 
-                "analyze_github", 
-                "check_eligibility",
-                "request_more_info"
+                "analyze_resume", "analyze_linkedin", "analyze_github", 
+                "check_eligibility", "score_profile", "schedule_interview", "request_more_info"
             ],
             done=False,
             reward=0.0,
             info={
                 "episode_id": self._episode_id,
-                "max_steps": 10
+                "max_steps": 10,
+                "system_message": "New applicant loaded. Initial screening stage."
             }
         )
-        
-        return initial_obs
-
-   
 
     def step(self, action: AdmissionsAction) -> AdmissionsObservation:
-        """
-        Processes the agent's action, updates state, and returns the next observation.
-        """
-        # 1. Update counters and history
+        """Processes the agent's action and updates state."""
         self._state.application_state.steps_taken += 1
+        self._state.step_count += 1
         self._state.application_state.history.append(action.action_type)
         
-        # Initialize default values for this step
+        args = getattr(action, "action_args", {})
         reward = 0.0
         done = False
         info = {"action_taken": action.action_type}
         
-        # 2. Handle Action Logic
-        # PROFILE ANALYSIS ACTIONS
+        # Action Logic (Rewards strictly bounded between 0.0 and 1.0)
         if action.action_type == "analyze_resume":
             self._state.application_state.stage = "resume_review"
-            reward = 2.0  # Reward for information gathering [cite: 13]
-            
+            reward = 0.05
         elif action.action_type == "analyze_linkedin":
-            reward = 1.0
-            
+            reward = 0.02
         elif action.action_type == "analyze_github":
-            reward = 1.0
-
-        # EVALUATION ACTIONS
+            reward = 0.02
         elif action.action_type == "check_eligibility":
-            # Logical check: is CGPA above a hidden threshold?
             is_eligible = self._state.applicant.cgpa >= 7.0
             info["eligibility_result"] = "Pass" if is_eligible else "Fail"
-            reward = 2.0
-
-        # TERMINAL ACTIONS (The Graders)
+            reward = 0.05
+        elif action.action_type == "score_profile":
+            score = args.get("score", 0)
+            info["system_message"] = f"Profile successfully scored at {score}/100"
+            reward = 0.02
+        elif action.action_type == "schedule_interview":
+            date = args.get("date", "TBD")
+            info["system_message"] = f"Interview scheduled for {date}"
+            reward = 0.01
+        elif action.action_type == "request_more_info":
+            question = args.get("question", "Please provide more details.")
+            info["system_message"] = f"Asked candidate: '{question}'"
+            reward = 0.01
+            
+        # Terminal Grader Actions
         elif action.action_type in ["admit", "reject"]:
             done = True
-            # Call the deterministic grader [cite: 9, 21]
             grade = self._calculate_grade(action.action_type)
-            
-            # Map 0.0-1.0 grade to a large reward/penalty [cite: 13]
-            if grade == 1.0:
-                reward = 100.0
-            elif grade == 0.5:
-                reward = 20.0
-            else:
-                reward = -80.0
-            
+            # The grade is already exactly 1.0, 0.5, or 0.0. Perfect!
+            reward = grade
             info["final_grade"] = grade
+            info["reason"] = args.get("reason", "No reason provided")
+            
+        elif action.action_type == "waitlist":
+            done = True
+            info["system_message"] = "Candidate moved to waitlist."
+            info["reason"] = args.get("reason", "No reason provided")
+            reward = 0.1  # Scaled down to be a small "safe" reward
 
-        # 3. Check Constraints (Max Steps)
+        # Max steps constraint check
         if self._state.application_state.steps_taken >= self._state.constraints["max_steps"] and not done:
             done = True
-            reward = -10.0  # Penalty for timing out [cite: 13]
+            reward = 0.0  # Kept at 0.0 minimum bound instead of negative
             info["reason"] = "Max steps exceeded"
 
-        # 4. Construct the next Observation
         return self._generate_observation(reward, done, info)
-        return AdmissionsObservation(
-            stage=self._state.application_state.stage,
-            applicant=ApplicantObservation(cgpa=0.0, test_score={}),
-            program={},
-            history=[],
-            available_actions=[],
-            done=False,
-            reward=0.0
-        )
-    #The Deterministic Grader(Helper)
+
     def _calculate_grade(self, decision: str) -> float:
-        """
-        Deterministic grader based on true_quality_score and program constraints.
-        """
         true_quality = self._state.applicant.true_quality_score
         seats_left = self._state.program.seats_total - self._state.program.seats_filled
-        
         if decision == "admit":
-            # High quality candidate
-            if true_quality >= 85:
-                return 1.0
-            # Good candidate, but seats are tight
-            elif true_quality >= 70:
-                return 1.0 if seats_left > 5 else 0.5
-            # Poor quality candidate
-            else:
-                return 0.0
-                
+            if true_quality >= 85: return 1.0
+            elif true_quality >= 70: return 1.0 if seats_left > 5 else 0.5
+            else: return 0.0
         elif decision == "reject":
-            # Correctly rejected a weak candidate
-            if true_quality < 70:
-                return 1.0
-            # Incorrectly rejected a genius
-            elif true_quality >= 85:
-                return 0.0
-            # Rejected a decent candidate (safe but not optimal)
-            else:
-                return 0.5
-        
+            if true_quality < 70: return 1.0
+            elif true_quality >= 85: return 0.0
+            else: return 0.5
         return 0.0
 
-    #The Observation Generator (Helper)
     def _generate_observation(self, reward: float, done: bool, info: dict) -> AdmissionsObservation:
         """
-        Helper to reveal state data based on the agent's history.
+        Helper for the STEP function only. 
+        Handles visibility of summaries based on history.
         """
         history = self._state.application_state.history
         
-        # Dynamic visibility: Only show summaries if the tool was used
+        # Unmasking logic
         res_sum = self._state.applicant.resume_full if "analyze_resume" in history else None
         lnk_sum = self._state.applicant.linkedin_full if "analyze_linkedin" in history else None
         git_sum = self._state.applicant.github_full if "analyze_github" in history else None
 
-        # Dynamic Actions: Only allow Admit/Reject after some analysis is done
-        actions = ["analyze_resume", "analyze_linkedin", "analyze_github", "check_eligibility"]
-        if "analyze_resume" in history or "check_eligibility" in history:
-            actions.extend(["admit", "reject"])
+        # Logic to update available actions
+        actions = ["analyze_resume", "analyze_linkedin", "analyze_github", 
+                   "check_eligibility", "score_profile", "schedule_interview", "request_more_info"]
         
+        # Unlock final decisions only after some analysis
+        if "analyze_resume" in history or "check_eligibility" in history:
+            actions.extend(["admit", "reject", "waitlist"])
+
         return AdmissionsObservation(
-            task="Continue evaluating the candidate.",
+            task="Continue evaluating the candidate based on previous findings.",
             stage=self._state.application_state.stage,
             applicant=ApplicantObservation(
                 cgpa=self._state.applicant.cgpa,
@@ -275,6 +225,7 @@ class AdmissionsEnvironment(Environment):
                 github_summary=git_sum
             ),
             program={
+                "name": self._state.program.name,
                 "seats_left": self._state.program.seats_total - self._state.program.seats_filled
             },
             history=history,
@@ -283,8 +234,6 @@ class AdmissionsEnvironment(Environment):
             reward=reward,
             info=info
         )
-
     @property
     def state(self) -> AdmissionsState:
-        """Returns the complete, hidden ground truth."""
         return self._state
