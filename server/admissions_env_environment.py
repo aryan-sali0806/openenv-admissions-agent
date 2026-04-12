@@ -218,40 +218,39 @@ class AdmissionsEnvironment(Environment):
         done = False
         info = {"action_taken": action.action_type}
         
-        # Step Penalty: -0.01 per step to encourage efficiency (RL Best Practice)
+        # Step Penalty: -0.01 to penalize time-wasting
         reward = -0.01 
         
-        # Action Logic 
+        # Action Logic with Small Intermediate Rewards
         if action.action_type == "analyze_resume":
             self._state.application_state.stage = "resume_review"
-            reward += 0.05
+            reward += 0.03  # Net +0.02
         elif action.action_type == "analyze_linkedin":
-            reward += 0.02
+            reward += 0.02  # Net +0.01
         elif action.action_type == "analyze_github":
-            reward += 0.02
+            reward += 0.02  # Net +0.01
         elif action.action_type == "check_eligibility":
             is_eligible = self._state.applicant.cgpa >= 7.0
             info["eligibility_result"] = "Pass" if is_eligible else "Fail"
-            reward += 0.05
+            reward += 0.03  # Net +0.02
         elif action.action_type == "score_profile":
             score = args.get("score", 0)
             info["system_message"] = f"Profile successfully scored at {score}/100"
-            reward += 0.02
+            reward += 0.02  # Net +0.01
         elif action.action_type == "schedule_interview":
             date = args.get("date", "TBD")
             info["system_message"] = f"Interview scheduled for {date}"
-            reward += 0.01
+            reward += 0.01  # Net 0.00
         elif action.action_type == "request_more_info":
             question = args.get("question", "Please provide more details.")
             info["system_message"] = f"Asked candidate: '{question}'"
-            reward += 0.01
+            reward += 0.01  # Net 0.00
             
         # Terminal Grader Actions
         elif action.action_type in ["admit", "reject"]:
             done = True
             grade = self._calculate_grade(action.action_type)
-            # The grade replaces the step penalty for the final turn
-            reward = grade
+            reward += grade
             info["final_grade"] = grade
             info["reason"] = args.get("reason", "No reason provided")
             
@@ -259,12 +258,12 @@ class AdmissionsEnvironment(Environment):
             done = True
             info["system_message"] = "Candidate moved to waitlist."
             info["reason"] = args.get("reason", "No reason provided")
-            reward = 0.1  # Scaled down to be a small "safe" reward
+            reward += 0.15
 
         # Max steps constraint check
         if self._state.application_state.steps_taken >= self._state.constraints["max_steps"] and not done:
             done = True
-            reward = 0.01  
+            reward += 0.10  # Bumps the final negative score up so it never drops to exactly 0.0
             info["reason"] = "Max steps exceeded"
 
         return self._generate_observation(reward, done, info)
@@ -273,22 +272,25 @@ class AdmissionsEnvironment(Environment):
         true_quality = self._state.applicant.true_quality_score
         seats_left = self._state.program.seats_total - self._state.program.seats_filled
         
-        grade = 0.01  # Default to 0.01 instead of 0.0
+        # We scale the terminal grades down. 
+        # A perfect win is 0.75. A complete fail is 0.10.
+        # This mathematically guarantees the cumulative sum stays between 0.01 and 0.98
+        grade = 0.10  
         
         if decision == "admit":
             if true_quality >= 85: 
-                grade = 0.99
+                grade = 0.75
             elif true_quality >= 70: 
-                grade = 0.99 if seats_left > 5 else 0.5
+                grade = 0.75 if seats_left > 5 else 0.40
             else: 
-                grade = 0.01
+                grade = 0.10
         elif decision == "reject":
             if true_quality < 70: 
-                grade = 0.99
+                grade = 0.75
             elif true_quality >= 85: 
-                grade = 0.01
+                grade = 0.10
             else: 
-                grade = 0.5
+                grade = 0.40
                 
         return grade
 
