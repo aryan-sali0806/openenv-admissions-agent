@@ -26,45 +26,133 @@ class AdmissionsEnvironment(Environment):
         super().__init__()
         self._state = None
         self._reset_count = 0
+        self._task_counter = 0  # <--- Added stateful curriculum counter
         self._episode_id = str(uuid4())
 
     def reset(self) -> AdmissionsObservation:
         """
-        Reset the environment and load a new applicant profile.
-        Returns a hardcoded 'Turn 1' observation.
+        Reset the environment and load a new applicant profile deterministically.
+        Cycles through Easy -> Medium -> Hard.
         """
         self._reset_count += 1
         self._episode_id = str(uuid4())
         
-        # 1. Randomly select task difficulty (Internal State)
-        task_type = random.choice(["easy", "medium", "hard"])
+        # 1. Deterministic Curriculum
+        curriculum = ["easy", "medium", "hard"]
+        task_type = curriculum[self._task_counter % 3]
+        self._task_counter += 1
         
         if task_type == "easy":
             app_state = ApplicantState(
                 cgpa=9.2,
-                test_score={"type": "GATE", "value": 750},
-                resume_full="Top university graduate, 2 ML publications, internship at Google.",
-                linkedin_full="Active AI researcher with 500+ professional connections.",
-                github_full={"repos": 25, "stars": 300, "top_lang": "Python"},
-                true_quality_score=95
+                test_score={"type": "GATE", "value": 820},
+                resume_full="""
+                PRIYA SHARMA
+                Email: priya.s@email.com | Phone: +91-9876543210
+                
+                EDUCATION
+                B.Tech in Computer Science, National Institute of Technology (2020-2024)
+                CGPA: 9.2/10 | Rank: 3rd in Department
+                
+                EXPERIENCE
+                Machine Learning Intern | Google India (May 2023 - Aug 2023)
+                - Engineered a transformer-based NLP model for sentiment analysis, improving accuracy by 12%.
+                - Optimized data pipelines using PyTorch and CUDA, reducing training time by 40%.
+                
+                PUBLICATIONS
+                - "Efficient Attention Mechanisms in Edge Devices" - Accepted at NeurIPS Workshop 2023.
+                
+                SKILLS
+                Languages: Python, C++, CUDA
+                Frameworks: PyTorch, TensorFlow, Hugging Face Transformers
+                """,
+                linkedin_full="""
+                Priya Sharma
+                Aspiring AI Researcher | Ex-Google ML Intern | NIT CS '24
+                Connections: 500+
+                
+                About: Deeply passionate about making Large Language Models more efficient. 
+                I love contributing to open-source PyTorch projects and publishing my findings. 
+                Looking forward to pursuing a Master's degree to deepen my research capabilities.
+                """,
+                github_full={"repos": 34, "stars": 850, "top_lang": "Python"},
+                true_quality_score=95 # Obvious Admit
             )
+
         elif task_type == "medium":
             app_state = ApplicantState(
                 cgpa=7.5,
-                test_score=None, 
-                resume_full="Decent state college, worked on 3 solid open-source AI projects.",
-                linkedin_full="Software Developer at a mid-sized firm, 150 connections.",
-                github_full={"repos": 12, "stars": 50, "top_lang": "C++"},
-                true_quality_score=75
+                test_score=None, # Missing data! Will force the AI to use request_more_info
+                resume_full="""
+                ALEX JOHNSON
+                Email: alex.j@email.com | Phone: 555-0192
+                
+                EDUCATION
+                B.Tech in Information Technology, State Engineering College (2019-2023)
+                CGPA: 7.5/10
+                
+                EXPERIENCE
+                Backend Developer | StartupX (June 2023 - Present)
+                - Built a Retrieval-Augmented Generation (RAG) pipeline for a customer support bot using LangChain.
+                - Managed PostgreSQL databases and deployed microservices via Docker and AWS.
+                
+                PROJECTS
+                - Med-Assist AI: A personal health assistant app built with React, FastAPI, and OpenAI APIs.
+                - Open Source: Active contributor to LangChain documentation.
+                
+                SKILLS
+                Languages: Python, JavaScript, SQL
+                Frameworks: FastAPI, React, Docker
+                """,
+                linkedin_full="""
+                Alex Johnson
+                Backend & AI Engineer @ StartupX | Self-Taught ML Enthusiast
+                Connections: 210
+                
+                About: I build scalable backends and love integrating LLMs into practical tools. 
+                While my academic scores are average, my hands-on experience with production systems 
+                and RAG architectures sets me apart. Always learning, always coding.
+                """,
+                github_full={"repos": 18, "stars": 120, "top_lang": "Python"},
+                true_quality_score=75 # Borderline/Requires Tools
             )
+
         else:
             app_state = ApplicantState(
-                cgpa=6.1,
-                test_score={"type": "GATE", "value": 780},
-                resume_full="Poor academic record but won a national robotics hackathon.",
-                linkedin_full="Robotics enthusiast, few professional connections.",
-                github_full={"repos": 4, "stars": 5, "top_lang": "C"},
-                true_quality_score=68
+                cgpa=7.2, # Fails check_eligibility threshold of 7.0
+                test_score={"type": "GATE", "value": 780}, 
+                resume_full="""
+                VIKRAM SINGH
+                Email: vikram.crypto@email.com | Phone: +91-9998887776
+                
+                EDUCATION
+                B.Tech in Mechanical Engineering, City Tech University (2018-2022)
+                CGPA: 6.1/10
+                
+                EXPERIENCE
+                Event Manager | Campus Fests (2020-2022)
+                - Organized the annual cultural festival, managing a budget of 5 Lakhs.
+                - Led a team of 50 volunteers.
+                
+                Freelance Web Designer (2023 - Present)
+                - Built WordPress websites for local businesses.
+                - Completed a 2-week online bootcamp on "Prompt Engineering & ChatGPT".
+                
+                SKILLS
+                Languages: HTML, CSS, Basic Python
+                Keywords: Visionary, Leadership, Web3, Crypto, AI Prompting, Blockchain
+                """,
+                linkedin_full="""
+                Vikram Singh
+                Visionary Tech Leader | AI Prompt Engineer | Web3 Enthusiast
+                Connections: 85
+                
+                About: Transforming the future through AI and Blockchain. I am a highly motivated leader 
+                who understands how to prompt AI to get the best results. Looking to pivot from Mechanical 
+                Engineering to a Master's in AI to become a Chief AI Officer.
+                """,
+                github_full={"repos": 2, "stars": 0, "top_lang": "HTML"},
+                true_quality_score=68 # Obvious Reject
             )
 
         # 2. Set the Hidden State
@@ -88,18 +176,16 @@ class AdmissionsEnvironment(Environment):
             task_type=task_type
         )
 
-        # 3. THE RESET OBSERVATION (Manual Return)
-        # This ensures the AI sees the OBJECTIVE and FULL GATE SCORE on Turn 1.
         return AdmissionsObservation(
             task=(
-                "OBJECTIVE: Evaluate the applicant for the MTech AI program. "
+                f"OBJECTIVE: Evaluate the applicant for the MTech AI program (Task: {task_type}). "
                 "Use your tools to analyze their profile. You have limited seats and a "
                 "max step limit. Make a final decision to ADMIT or REJECT."
             ),
             stage="initial_screening",
             applicant=ApplicantObservation(
                 cgpa=self._state.applicant.cgpa,
-                test_score=self._state.applicant.test_score, # Full score shown!
+                test_score=self._state.applicant.test_score,
                 resume_summary=None,
                 linkedin_summary=None,
                 github_summary=None
@@ -118,7 +204,7 @@ class AdmissionsEnvironment(Environment):
             info={
                 "episode_id": self._episode_id,
                 "max_steps": 10,
-                "system_message": "New applicant loaded. Initial screening stage."
+                "system_message": f"New applicant loaded. Curriculum: {task_type}"
             }
         )
 
@@ -129,40 +215,42 @@ class AdmissionsEnvironment(Environment):
         self._state.application_state.history.append(action.action_type)
         
         args = getattr(action, "action_args", {})
-        reward = 0.0
         done = False
         info = {"action_taken": action.action_type}
         
-        # Action Logic (Rewards strictly bounded between 0.0 and 1.0)
+        # Step Penalty: -0.01 per step to encourage efficiency (RL Best Practice)
+        reward = -0.01 
+        
+        # Action Logic 
         if action.action_type == "analyze_resume":
             self._state.application_state.stage = "resume_review"
-            reward = 0.05
+            reward += 0.05
         elif action.action_type == "analyze_linkedin":
-            reward = 0.02
+            reward += 0.02
         elif action.action_type == "analyze_github":
-            reward = 0.02
+            reward += 0.02
         elif action.action_type == "check_eligibility":
             is_eligible = self._state.applicant.cgpa >= 7.0
             info["eligibility_result"] = "Pass" if is_eligible else "Fail"
-            reward = 0.05
+            reward += 0.05
         elif action.action_type == "score_profile":
             score = args.get("score", 0)
             info["system_message"] = f"Profile successfully scored at {score}/100"
-            reward = 0.02
+            reward += 0.02
         elif action.action_type == "schedule_interview":
             date = args.get("date", "TBD")
             info["system_message"] = f"Interview scheduled for {date}"
-            reward = 0.01
+            reward += 0.01
         elif action.action_type == "request_more_info":
             question = args.get("question", "Please provide more details.")
             info["system_message"] = f"Asked candidate: '{question}'"
-            reward = 0.01
+            reward += 0.01
             
         # Terminal Grader Actions
         elif action.action_type in ["admit", "reject"]:
             done = True
             grade = self._calculate_grade(action.action_type)
-            # The grade is already exactly 1.0, 0.5, or 0.0. Perfect!
+            # The grade replaces the step penalty for the final turn
             reward = grade
             info["final_grade"] = grade
             info["reason"] = args.get("reason", "No reason provided")
@@ -176,7 +264,7 @@ class AdmissionsEnvironment(Environment):
         # Max steps constraint check
         if self._state.application_state.steps_taken >= self._state.constraints["max_steps"] and not done:
             done = True
-            reward = 0.0  # Kept at 0.0 minimum bound instead of negative
+            reward = 0.0  
             info["reason"] = "Max steps exceeded"
 
         return self._generate_observation(reward, done, info)
@@ -195,10 +283,6 @@ class AdmissionsEnvironment(Environment):
         return 0.0
 
     def _generate_observation(self, reward: float, done: bool, info: dict) -> AdmissionsObservation:
-        """
-        Helper for the STEP function only. 
-        Handles visibility of summaries based on history.
-        """
         history = self._state.application_state.history
         
         # Unmasking logic
@@ -206,7 +290,6 @@ class AdmissionsEnvironment(Environment):
         lnk_sum = self._state.applicant.linkedin_full if "analyze_linkedin" in history else None
         git_sum = self._state.applicant.github_full if "analyze_github" in history else None
 
-        # Logic to update available actions
         actions = ["analyze_resume", "analyze_linkedin", "analyze_github", 
                    "check_eligibility", "score_profile", "schedule_interview", "request_more_info"]
         
@@ -234,6 +317,7 @@ class AdmissionsEnvironment(Environment):
             reward=reward,
             info=info
         )
+
     @property
     def state(self) -> AdmissionsState:
         return self._state

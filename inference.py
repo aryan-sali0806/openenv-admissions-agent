@@ -1,48 +1,4 @@
 """
-Inference Script Example
-===================================
-MANDATORY
-- Before submitting, ensure the following variables are defined in your environment configuration:
-    API_BASE_URL   The API endpoint for the LLM.
-    MODEL_NAME     The model identifier to use for inference.
-    HF_TOKEN       Your Hugging Face / API key.
-    LOCAL_IMAGE_NAME The name of the local image to use for the environment if you are using from_docker_image()
-                     method
-
-- Defaults are set only for API_BASE_URL and MODEL_NAME 
-    (and should reflect your active inference setup):
-    API_BASE_URL = os.getenv("API_BASE_URL", "<your-active-endpoint>")
-    MODEL_NAME = os.getenv("MODEL_NAME", "<your-active-model>")
-    
-- The inference script must be named `inference.py` and placed in the root directory of the project
-- Participants must use OpenAI Client for all LLM calls using above variables
-
-STDOUT FORMAT
-- The script must emit exactly three line types to stdout, in this order:
-
-    [START] task=<task_name> env=<benchmark> model=<model_name>
-    [STEP]  step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
-    [END]   success=<true|false> steps=<n> score=<score> rewards=<r1,r2,...,rn>
-
-  Rules:
-    - One [START] line at episode begin.
-    - One [STEP] line per step, immediately after env.step() returns.
-    - One [END] line after env.close(), always emitted (even on exception).
-    - reward and rewards are formatted to 2 decimal places.
-    - done and success are lowercase booleans: true or false.
-    - error is the raw last_action_error string, or null if none.
-    - All fields on a single line with no newlines within a line.
-    - Each tasks should return score in [0, 1]
-
-  Example:
-    [START] task=click-test env=miniwob model=Qwen3-VL-30B
-    [STEP] step=1 action=click('123') reward=0.00 done=false error=null
-    [STEP] step=2 action=fill('456','text') reward=0.00 done=false error=null
-    [STEP] step=3 action=click('789') reward=1.00 done=true error=null
-    [END] success=true steps=3 score=1.00 rewards=0.00,0.00,1.00
-"""
-
-"""
 Inference Script for Admissions Environment
 ===================================
 MANDATORY
@@ -51,17 +7,13 @@ MANDATORY
     MODEL_NAME     The model identifier to use for inference.
     HF_TOKEN       Your Hugging Face / API key.
     IMAGE_NAME     The name of the local image to use for the environment if you are using from_docker_image()
-                     method
+                   method
 """
-
-
-
 import asyncio
 import os
 import json
 import textwrap
 from typing import List, Optional
-
 from openai import OpenAI
 
 # Import your environment classes
@@ -70,9 +22,8 @@ from models import AdmissionsAction
 
 IMAGE_NAME = os.getenv("IMAGE_NAME") # If you are using docker image 
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
-
-API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
-MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 BENCHMARK = os.getenv("ADMISSIONS_BENCHMARK", "admissions_env")
 
 MAX_STEPS = 10
@@ -80,7 +31,7 @@ TEMPERATURE = 0.1
 MAX_TOKENS = 500
 SUCCESS_SCORE_THRESHOLD = 0.5  # normalized score in [0, 1]
 
-# FIX 1: We define 3 distinct tasks to satisfy the "At least 3 tasks" rule
+# Define 3 distinct curriculum tasks
 TASKS = ["admissions_easy", "admissions_medium", "admissions_hard"]
 
 SYSTEM_PROMPT = textwrap.dedent(
@@ -112,7 +63,7 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
+    print(f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}", flush=True)
 
 def build_user_prompt(step: int, last_obs: str, last_reward: float, history: List[str]) -> str:
     history_block = "\n".join(history[-4:]) if history else "None"
@@ -123,6 +74,7 @@ def build_user_prompt(step: int, last_obs: str, last_reward: float, history: Lis
         Last reward: {last_reward:.2f}
         Previous steps:
         {history_block}
+        
         Send your next action as a strict JSON object.
         """
     ).strip()
@@ -144,6 +96,7 @@ def get_model_action(client: OpenAI, step: int, last_obs: str, last_reward: floa
         
         clean_text = text.replace("```json", "").replace("```", "").strip()
         action_data = json.loads(clean_text)
+        
         return AdmissionsAction(**action_data)
     except Exception as exc:
         print(f"[DEBUG] Model request failed: {exc}", flush=True)
@@ -151,7 +104,7 @@ def get_model_action(client: OpenAI, step: int, last_obs: str, last_reward: floa
 
 async def main() -> None:
     if not API_KEY:
-        raise ValueError("API_KEY or HF_TOKEN is missing!")
+        raise ValueError("HF_TOKEN environment variable is required")
 
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
@@ -162,7 +115,7 @@ async def main() -> None:
         await env.connect()
 
     try:
-        # Loop over our 3 distinct tasks so the grader sees 3 logs!
+        # Execute the 3 distinct tasks sequentially
         for task_name in TASKS:
             history: List[str] = []
             rewards: List[float] = []
@@ -171,7 +124,7 @@ async def main() -> None:
             success = False
 
             log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
-
+            
             result = await env.reset() 
             last_obs = result.observation.model_dump_json(indent=2)
             last_reward = 0.0
@@ -198,9 +151,8 @@ async def main() -> None:
                 rewards.append(reward)
                 steps_taken = step
                 last_reward = reward
-
+                
                 action_str = f"{action.action_type}({json.dumps(action.action_args)})".replace(" ", "")
-
                 log_step(step=step, action=action_str, reward=reward, done=done, error=error)
                 history.append(f"Step {step}: {action_str} -> reward {reward:+.2f}")
 
@@ -210,9 +162,9 @@ async def main() -> None:
                 if not IMAGE_NAME:
                     await asyncio.sleep(0.1)
 
-            # FIX 2: Score must be STRICTLY between 0 and 1 (Not 0.0, Not 1.0)
+            # Calculate raw score bounded between [0.0, 1.0]
             score = sum(rewards)
-            score = min(max(score, 0.01), 0.99)  # Clamps perfectly!
+            score = max(0.0, min(1.0, score)) 
             success = score >= SUCCESS_SCORE_THRESHOLD
 
             log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
