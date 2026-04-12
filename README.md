@@ -117,7 +117,30 @@ docker run -p 8000:8000 admissions_env:latest
 
 ---
 
-## 🧠 Technical Notes
+## 🔬 Technical Evaluation & Research Utility
 
-- Masking logic reveals data via tools
-- Handles API failures gracefully
+The Admissions Env is designed not just as a task, but as a **diagnostic tool** for LLM reasoning.
+
+### 1. State Unmasking Logic
+The environment enforces a strict "Fog of War" protocol. The `ApplicantObservation` schema defaults to `None` for deep profile attributes. The server monitors the agent's `history` and only injects data into the observation stream once the correct diagnostic tool is called. This ensures that agents cannot "cheat" by using internal pre-training knowledge about the curriculum.
+
+### 2. Behavioral Failure Mode Analysis
+By implementing a curriculum with deliberate "Missing Data" (Task: Medium), the environment exposes two critical LLM failure modes:
+* **Hallucination:** Does the agent admit a candidate based on a test score that doesn't exist in the context?
+* **Action Stagnation:** Does the agent loop indefinitely when a "perfect" answer isn't available? 
+
+### 3. Safety & Boundedness
+The scaled reward system serves as a built-in safety alignment proxy. By penalizing "lazy" admits and rewarding "efficient" rejections, the environment provides a clear signal for fine-tuning agents to be both thorough and decisive.
+
+---
+
+## 🚀 Future Roadmap
+- [ ] **Multi-Agent Mode:** Introducing a "Department Chair" agent that can override decisions.
+- [ ] **Bias Probing:** Injecting protected attributes to evaluate and mitigate algorithmic bias in admissions.
+- [ ] **Dynamic RAG Integration:** Connecting the environment to a live vector database of "University Policies."
+
+## 📜 License
+This project is licensed under the **BSD-3-Clause License**. It is intended for open research and the advancement of autonomous agent evaluation within the OpenEnv ecosystem.
+
+---
+**Developed for the Meta PyTorch Hackathon x Scaler School of Technology.** *Empowering the next generation of autonomous decision-makers.*
