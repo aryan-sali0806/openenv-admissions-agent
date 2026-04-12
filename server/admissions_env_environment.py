@@ -264,7 +264,7 @@ class AdmissionsEnvironment(Environment):
         # Max steps constraint check
         if self._state.application_state.steps_taken >= self._state.constraints["max_steps"] and not done:
             done = True
-            reward = 0.0  
+            reward = 0.01  
             info["reason"] = "Max steps exceeded"
 
         return self._generate_observation(reward, done, info)
@@ -272,15 +272,25 @@ class AdmissionsEnvironment(Environment):
     def _calculate_grade(self, decision: str) -> float:
         true_quality = self._state.applicant.true_quality_score
         seats_left = self._state.program.seats_total - self._state.program.seats_filled
+        
+        grade = 0.01  # Default to 0.01 instead of 0.0
+        
         if decision == "admit":
-            if true_quality >= 85: return 1.0
-            elif true_quality >= 70: return 1.0 if seats_left > 5 else 0.5
-            else: return 0.0
+            if true_quality >= 85: 
+                grade = 0.99
+            elif true_quality >= 70: 
+                grade = 0.99 if seats_left > 5 else 0.5
+            else: 
+                grade = 0.01
         elif decision == "reject":
-            if true_quality < 70: return 1.0
-            elif true_quality >= 85: return 0.0
-            else: return 0.5
-        return 0.0
+            if true_quality < 70: 
+                grade = 0.99
+            elif true_quality >= 85: 
+                grade = 0.01
+            else: 
+                grade = 0.5
+                
+        return grade
 
     def _generate_observation(self, reward: float, done: bool, info: dict) -> AdmissionsObservation:
         history = self._state.application_state.history
