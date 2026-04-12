@@ -13,7 +13,7 @@ tags:
 
 # Admissions Env Environment
 
-A simple test environment that echoes back messages. Perfect for testing the env APIs as well as demonstrating environment usage patterns.
+An autonomous, LLM-powered postgraduate admissions officer environment. Perfect for testing the env APIs as well as demonstrating environment usage patterns.
 
 ## Quick Start
 
@@ -21,168 +21,122 @@ The simplest way to use the Admissions Env environment is through the `Admission
 
 ```python
 from admissions_env import AdmissionsAction, AdmissionsEnv
-
 try:
     # Create environment from Docker image
     admissions_envenv = AdmissionsEnv.from_docker_image("admissions_env-env:latest")
-
     # Reset
     result = admissions_envenv.reset()
-    print(f"Reset: {result.observation.echoed_message}")
-
-    # Send multiple messages
-    messages = ["Hello, World!", "Testing echo", "Final message"]
-
-    for msg in messages:
-        result = admissions_envenv.step(AdmissionsAction(message=msg))
-        print(f"Sent: '{msg}'")
-        print(f"  → Echoed: '{result.observation.echoed_message}'")
-        print(f"  → Length: {result.observation.message_length}")
+    print("New Candidate Profile Generated!")
+    # Send multiple actions
+    actions = [
+        AdmissionsAction(action_type="check_eligibility", action_args={"cgpa_threshold": 6.5}),
+        AdmissionsAction(action_type="analyze_resume", action_args={}),
+        AdmissionsAction(action_type="admit", action_args={})
+    ]
+    for action in actions:
+        result = admissions_envenv.step(action)
+        print(f"Executed: '{action.action_type}'")
+        print(f"  → Done: {result.done}")
         print(f"  → Reward: {result.reward}")
-
 finally:
     # Always clean up
     admissions_envenv.close()
-```
-
-That's it! The `AdmissionsEnv.from_docker_image()` method handles:
-- Starting the Docker container
-- Waiting for the server to be ready
-- Connecting to the environment
-- Container cleanup when you call `close()`
-
-## Building the Docker Image
-
+That's it! The AdmissionsEnv.from_docker_image() method handles:
+Starting the Docker container
+Waiting for the server to be ready
+Connecting to the environment
+Container cleanup when you call close()
+Building the Docker Image
 Before using the environment, you need to build the Docker image:
-
-```bash
+Bash
 # From project root
 docker build -t admissions_env-env:latest -f server/Dockerfile .
-```
-
-## Deploying to Hugging Face Spaces
-
-You can easily deploy your OpenEnv environment to Hugging Face Spaces using the `openenv push` command:
-
-```bash
+Deploying to Hugging Face Spaces
+You can easily deploy your OpenEnv environment to Hugging Face Spaces using the openenv push command:
+Bash
 # From the environment directory (where openenv.yaml is located)
 openenv push
-
 # Or specify options
 openenv push --namespace my-org --private
-```
-
-The `openenv push` command will:
-1. Validate that the directory is an OpenEnv environment (checks for `openenv.yaml`)
-2. Prepare a custom build for Hugging Face Docker space (enables web interface)
-3. Upload to Hugging Face (ensuring you're logged in)
-
-### Prerequisites
-
-- Authenticate with Hugging Face: The command will prompt for login if not already authenticated
-
-### Options
-
-- `--directory`, `-d`: Directory containing the OpenEnv environment (defaults to current directory)
-- `--repo-id`, `-r`: Repository ID in format 'username/repo-name' (defaults to 'username/env-name' from openenv.yaml)
-- `--base-image`, `-b`: Base Docker image to use (overrides Dockerfile FROM)
-- `--private`: Deploy the space as private (default: public)
-
-### Examples
-
-```bash
+The openenv push command will:
+Validate that the directory is an OpenEnv environment (checks for openenv.yaml)
+Prepare a custom build for Hugging Face Docker space (enables web interface)
+Upload to Hugging Face (ensuring you're logged in)
+Prerequisites
+Authenticate with Hugging Face: The command will prompt for login if not already authenticated
+Options
+--directory, -d: Directory containing the OpenEnv environment (defaults to current directory)
+--repo-id, -r: Repository ID in format 'username/repo-name' (defaults to 'username/env-name' from openenv.yaml)
+--base-image, -b: Base Docker image to use (overrides Dockerfile FROM)
+--private: Deploy the space as private (default: public)
+Examples
+Bash
 # Push to your personal namespace (defaults to username/env-name from openenv.yaml)
 openenv push
-
 # Push to a specific repository
 openenv push --repo-id my-org/my-env
-
 # Push with a custom base image
 openenv push --base-image ghcr.io/meta-pytorch/openenv-base:latest
-
 # Push as a private space
 openenv push --private
-
 # Combine options
 openenv push --repo-id my-org/my-env --base-image custom-base:latest --private
-```
-
 After deployment, your space will be available at:
-`https://huggingface.co/spaces/<repo-id>`
-
+https://huggingface.co/spaces/<repo-id>
 The deployed space includes:
-- **Web Interface** at `/web` - Interactive UI for exploring the environment
-- **API Documentation** at `/docs` - Full OpenAPI/Swagger interface
-- **Health Check** at `/health` - Container health monitoring
-- **WebSocket** at `/ws` - Persistent session endpoint for low-latency interactions
-
-## Environment Details
-
-### Action
-**AdmissionsAction**: Contains a single field
-- `message` (str) - The message to echo back
-
-### Observation
-**AdmissionsObservation**: Contains the echo response and metadata
-- `echoed_message` (str) - The message echoed back
-- `message_length` (int) - Length of the message
-- `reward` (float) - Reward based on message length (length × 0.1)
-- `done` (bool) - Always False for echo environment
-- `metadata` (dict) - Additional info like step count
-
-### Reward
-The reward is calculated as: `message_length × 0.1`
-- "Hi" → reward: 0.2
-- "Hello, World!" → reward: 1.3
-- Empty message → reward: 0.0
-
-## Advanced Usage
-
-### Connecting to an Existing Server
-
+Web Interface at /web - Interactive UI for exploring the environment
+API Documentation at /docs - Full OpenAPI/Swagger interface
+Health Check at /health - Container health monitoring
+WebSocket at /ws - Persistent session endpoint for low-latency interactions
+Environment Details
+Action
+AdmissionsAction: Expects a strict JSON payload for tool execution
+action_type (str) - The name of the tool to use (e.g., check_eligibility, admit, reject).
+action_args (dict) - The arguments required for that specific tool.
+Observation
+AdmissionsObservation: Contains the candidate state and tool responses
+candidate_data (dict) - Current known information about the applicant.
+tool_result (str) - The feedback or data returned from the last action.
+reward (float) - The reward earned for the last action.
+done (bool) - True if a terminal action (admit, reject) was taken.
+metadata (dict) - Additional info like step count
+Reward
+The environment issues dynamic Reinforcement Learning rewards:
+Partial Rewards (e.g., 0.05) for correctly using investigative tools like analyze_resume.
+Terminal Rewards (e.g., 1.0) for making the correct final admission decision based on the candidate profile.
+Advanced Usage
+Connecting to an Existing Server
 If you already have a Admissions Env environment server running, you can connect directly:
-
-```python
-from admissions_env import AdmissionsEnv
-
+Python
+from admissions_env import AdmissionsEnv, AdmissionsAction
 # Connect to existing server
 admissions_envenv = AdmissionsEnv(base_url="<ENV_HTTP_URL_HERE>")
-
 # Use as normal
 result = admissions_envenv.reset()
-result = admissions_envenv.step(AdmissionsAction(message="Hello!"))
-```
-
-Note: When connecting to an existing server, `admissions_envenv.close()` will NOT stop the server.
-
-### Using the Context Manager
-
+result = admissions_envenv.step(AdmissionsAction(action_type="check_eligibility", action_args={}))
+Note: When connecting to an existing server, admissions_envenv.close() will NOT stop the server.
+Using the Context Manager
 The client supports context manager usage for automatic connection management:
-
-```python
+Python
 from admissions_env import AdmissionsAction, AdmissionsEnv
-
 # Connect with context manager (auto-connects and closes)
 with AdmissionsEnv(base_url="http://localhost:8000") as env:
     result = env.reset()
-    print(f"Reset: {result.observation.echoed_message}")
+    print("Environment Reset. Evaluating...")
+    
     # Multiple steps with low latency
-    for msg in ["Hello", "World", "!"]:
-        result = env.step(AdmissionsAction(message=msg))
-        print(f"Echoed: {result.observation.echoed_message}")
-```
-
+    actions = ["analyze_resume", "score_profile", "admit"]
+    for act in actions:
+        result = env.step(AdmissionsAction(action_type=act, action_args={}))
+        print(f"Action: {act} -> Reward: {result.reward}")
 The client uses WebSocket connections for:
-- **Lower latency**: No HTTP connection overhead per request
-- **Persistent session**: Server maintains your environment state
-- **Efficient for episodes**: Better for many sequential steps
-
-### Concurrent WebSocket Sessions
-
+Lower latency: No HTTP connection overhead per request
+Persistent session: Server maintains your environment state
+Efficient for episodes: Better for many sequential steps
+Concurrent WebSocket Sessions
 The server supports multiple concurrent WebSocket connections. To enable this,
-modify `server/app.py` to use factory mode:
-
-```python
+modify server/app.py to use factory mode:
+Python
 # In server/app.py - use factory mode for concurrent sessions
 app = create_app(
     AdmissionsEnvironment,  # Pass class, not instance
@@ -190,66 +144,48 @@ app = create_app(
     AdmissionsObservation,
     max_concurrent_envs=4,  # Allow 4 concurrent sessions
 )
-```
-
 Then multiple clients can connect simultaneously:
-
-```python
+Python
 from admissions_env import AdmissionsAction, AdmissionsEnv
 from concurrent.futures import ThreadPoolExecutor
-
 def run_episode(client_id: int):
     with AdmissionsEnv(base_url="http://localhost:8000") as env:
         result = env.reset()
         for i in range(10):
-            result = env.step(AdmissionsAction(message=f"Client {client_id}, step {i}"))
-        return client_id, result.observation.message_length
-
+            result = env.step(AdmissionsAction(action_type="admit", action_args={}))
+        return client_id, result.reward
 # Run 4 episodes concurrently
 with ThreadPoolExecutor(max_workers=4) as executor:
     results = list(executor.map(run_episode, range(4)))
-```
-
-## Development & Testing
-
-### Direct Environment Testing
-
+Development & Testing
+Direct Environment Testing
 Test the environment logic directly without starting the HTTP server:
-
-```bash
+Bash
 # From the server directory
 python3 server/admissions_env_environment.py
-```
-
 This verifies that:
-- Environment resets correctly
-- Step executes actions properly
-- State tracking works
-- Rewards are calculated correctly
-
-### Running Locally
-
+Environment resets correctly
+Step executes actions properly
+State tracking works
+Rewards are calculated correctly
+Running Locally
 Run the server locally for development:
-
-```bash
+Bash
 uvicorn server.app:app --reload
-```
-
-## Project Structure
-
-```
+Project Structure
 admissions_env/
 ├── .dockerignore         # Docker build exclusions
-├── __init__.py            # Module exports
-├── README.md              # This file
-├── openenv.yaml           # OpenEnv manifest
-├── pyproject.toml         # Project metadata and dependencies
-├── uv.lock                # Locked dependencies (generated)
-├── client.py              # AdmissionsEnv client
-├── models.py              # Action and Observation models
+├── __init__.py           # Module exports
+├── README.md             # This file
+├── openenv.yaml          # OpenEnv manifest
+├── pyproject.toml        # Project metadata and dependencies
+├── uv.lock               # Locked dependencies (generated)
+├── client.py             # AdmissionsEnv client
+├── models.py             # Action and Observation models
 └── server/
-    ├── __init__.py        # Server module exports
+    ├── __init__.py       # Server module exports
     ├── admissions_env_environment.py  # Core environment logic
-    ├── app.py             # FastAPI application (HTTP + WebSocket endpoints)
+    ├── app.py            # FastAPI application (HTTP + WebSocket endpoints)
+    └── Dockerfile        # Container image definition
     └── Dockerfile         # Container image definition
 ```
